@@ -5,6 +5,10 @@ import * as vscode from 'vscode';
 
 const OUTPUT_CHANNEL_NAME = 'Bnd Language Server';
 const JAR_FILENAME = 'bnd-lsp.jar';
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+
+/** Re-check for a newer "latest" release no more than once per day. */
+const LATEST_TTL_MS = 24 * 60 * 60 * 1000;
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -21,6 +25,9 @@ function log(message: string): void {
 
 /**
  * Returns the path to the cached bnd-lsp JAR, downloading it if necessary.
+ *
+ * For pinned versions the JAR is downloaded once and reused.
+ * For `"latest"` the JAR is re-downloaded at most once per day.
  *
  * @param context - The VS Code extension context (used for cache directory).
  * @returns The absolute path to the JAR file, or undefined if download failed.
@@ -43,10 +50,20 @@ export async function ensureJar(context: vscode.ExtensionContext): Promise<strin
     // Build the download URL based on configured version
     const downloadUrl = buildDownloadUrl(downloadBaseUrl, version);
 
-    // Check if already cached with a valid size
-    if (fs.existsSync(jarPath) && fs.statSync(jarPath).size > 0 && version !== 'latest') {
+    // For pinned versions, use the cached JAR if it exists.
+    if (version !== 'latest' && fs.existsSync(jarPath) && fs.statSync(jarPath).size > 0) {
         log(`Using cached JAR at ${jarPath}`);
         return jarPath;
+    }
+
+    // For "latest", only re-download if the cached JAR is older than LATEST_TTL_MS.
+    if (version === 'latest' && fs.existsSync(jarPath) && fs.statSync(jarPath).size > 0) {
+        const ageMs = Date.now() - fs.statSync(jarPath).mtimeMs;
+        if (ageMs < LATEST_TTL_MS) {
+            log(`Using cached JAR at ${jarPath} (age: ${Math.round(ageMs / 60_000)} min)`);
+            return jarPath;
+        }
+        log(`Cached JAR is older than 24 h — checking for a newer release.`);
     }
 
     log(`Downloading bnd-lsp JAR (${version}) from ${downloadUrl} ...`);
@@ -157,7 +174,7 @@ function downloadFile(url: string, destPath: string): Promise<void> {
             });
 
             request.on('error', reject);
-            request.setTimeout(30_000, () => {
+            request.setTimeout(DOWNLOAD_TIMEOUT_MS, () => {
                 request.destroy(new Error(`Request timed out for ${currentUrl}`));
             });
         };

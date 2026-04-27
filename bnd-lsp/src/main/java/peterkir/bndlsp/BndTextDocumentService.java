@@ -114,7 +114,9 @@ public class BndTextDocumentService implements TextDocumentService {
     public void didChange(DidChangeTextDocumentParams params) {
         String uri = params.getTextDocument().getUri();
         List<TextDocumentContentChangeEvent> changes = params.getContentChanges();
-        if (changes.isEmpty()) { return; }
+        if (changes.isEmpty()) {
+            return;
+        }
 
         // For simplicity use the last full-text change if present; otherwise apply incrementally
         TextDocumentContentChangeEvent last = changes.get(changes.size() - 1);
@@ -252,8 +254,8 @@ public class BndTextDocumentService implements TextDocumentService {
     }
 
     private String[] splitLines(String text) {
-        // Split preserving empty trailing lines
-        return text.split("\n", -1);
+        // Split on Unix or Windows line endings
+        return text.split("\\r?\\n", -1);
     }
 
     /**

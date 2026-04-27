@@ -51,7 +51,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         })
     );
 
-    context.subscriptions.push({ dispose: () => stopClient() });
+    context.subscriptions.push({ dispose: async () => { await stopClient(); } });
 }
 
 export function deactivate(): Thenable<void> | undefined {
